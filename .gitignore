@@ -1,0 +1,7 @@
+﻿################################################################################
+# This .gitignore file was automatically created by Microsoft(R) Visual Studio.
+################################################################################
+
+/vk_trainee/.vs/vk_trainee/v15
+/vk_trainee/Debug/vk_trainee.tlog
+/vk_trainee/Debug
