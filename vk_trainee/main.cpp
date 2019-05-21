@@ -20,6 +20,11 @@ int count_same_hash(const vector<int>& arr1, const vector<int>& arr2) {
 	const vector<int>& small = arr1.size() < arr2.size() ? arr1 : arr2;
 	const vector<int>& big = arr1.size() < arr2.size() ? arr2 : arr1;
 	unordered_set<int> hash(small.begin(), small.end());
+	std::cout << "current max_load_factor: " << hash.max_load_factor() << std::endl;
+	std::cout << "current size: " << hash.size() << std::endl;
+	std::cout << "current bucket_count: " << hash.bucket_count() << std::endl;
+	std::cout << "current load_factor: " << hash.load_factor() << std::endl;
+
 	int counter = 0;
 	for (int el : big)
 	{
@@ -31,11 +36,11 @@ int count_same_hash(const vector<int>& arr1, const vector<int>& arr2) {
 	return counter;
 }
 
-int count_same_quick_sort(const vector<int>& arr1c, const vector<int>& arr2c) {
+template <typename SortT>
+int count_same_using_sort(const vector<int>& arr1c, const vector<int>& arr2c, SortT sort) {
 	vector<int> arr1(arr1c.begin(), arr1c.end());
 	vector<int> arr2(arr2c.begin(), arr2c.end());
-	sort(arr1.begin(), arr1.end());
-	sort(arr2.begin(), arr2.end());
+	sort(arr1, arr2);
 	auto it1 = arr1.begin();
 	auto it2 = arr2.begin();
 	int counter = 0;
@@ -53,6 +58,68 @@ int count_same_quick_sort(const vector<int>& arr1c, const vector<int>& arr2c) {
 	}
 
 	return counter;
+}
+
+
+
+int count_same_quick_sort(const vector<int>& arr1c, const vector<int>& arr2c) {
+	return count_same_using_sort(arr1c, arr2c, [](vector<int>& arr1, vector<int>& arr2) {
+		int(*comp)(const void* a, const void* b) = [](const void* a, const void* b)
+		{
+			return *static_cast<const int*>(a) > *static_cast<const int*>(b) ? 1 : -1;
+		};
+
+		std::qsort(&arr1[0], arr1.size(), sizeof(int), comp);
+		std::qsort(&arr2[0], arr2.size(), sizeof(int), comp);
+	});	
+}
+
+int count_same_std_sort(const vector<int>& arr1c, const vector<int>& arr2c) {
+	return count_same_using_sort(arr1c, arr2c, [](vector<int>& arr1, vector<int>& arr2) {
+		sort(arr1.begin(), arr1.end());
+		sort(arr2.begin(), arr2.end());
+	});
+}
+
+
+
+static void countSort(vector<int>& arr, int exp)
+{
+	vector<int> output(arr.size(), 0);
+	vector<int> count(10, 0);
+	int n = arr.size();
+
+	for (int i = 0; i < n; i++)
+		count[(arr[i] / exp) % 10]++;
+
+	for (int i = 1; i < 10; i++)
+		count[i] += count[i - 1];
+
+	for (int i = n - 1; i >= 0; i--)
+	{
+		output[count[(arr[i] / exp) % 10] - 1] = arr[i];
+		count[(arr[i] / exp) % 10]--;
+	}
+
+	for (int i = 0; i < n; i++)
+		arr[i] = output[i];
+}
+
+void radixSort(vector<int>& arr) {
+	int max = 0;
+	for (int item : arr)
+		if (item > max) max = item;
+	//int maxExp = (max == 0 ? 1 : int(log10(max) + 1));
+
+	for (int exp = 1; max / exp > 0; exp *= 10)
+		countSort(arr, exp);
+}
+
+int count_same_radix(const vector<int>& arr1c, const vector<int>& arr2c) {
+	return count_same_using_sort(arr1c, arr2c, [](vector<int>& arr1, vector<int>& arr2) {
+		radixSort(arr1);
+		radixSort(arr2);
+	});
 }
 
 int count_same_set(const vector<int>& arr1c, const vector<int>& arr2c) {
@@ -78,13 +145,6 @@ int count_same_set(const vector<int>& arr1c, const vector<int>& arr2c) {
 	return counter;
 }
 
-int count_same_radix(const vector<int>& arr1, const vector<int>& arr2) {
-	
-
-
-
-	return 1;
-}
 
 int count_same_elements(const vector<int>& arr1, const vector<int>& arr2) {
 	return count_same_hash(arr1, arr2);
@@ -129,9 +189,21 @@ void run_simple_tests() {
 	}
 }
 
+template <typename MethodT>
+void log_generated_test(string sort_name, const vector<int>& arr1, const vector<int>& arr2, MethodT countMethod, int expected) {
+	clock_t start = clock();
+	cout << endl << sort_name << endl;
+	int res = countMethod(arr1, arr2);
+	if (res == expected) cout << "OK" << endl;
+	else cout << "FAIL" << endl;
+	cout << "result: " << res << " expected: " << expected << endl;
+	cout << "duration " << (clock() - start) / (double)CLOCKS_PER_SEC << " sec" << endl;
+
+}
+
 void run_rand_generated_test() {
-	size_t size1 = 10000;
-	size_t size2 = 990000;
+	size_t size1 = 9;
+	size_t size2 = 900000;
 	vector<int> arr1(size1);
 	unordered_set<int> hash1(size1);
 	vector<int> arr2(size2);
@@ -165,37 +237,77 @@ void run_rand_generated_test() {
 	}
 	cout << "generating data duration " << (clock() - start) / (double)CLOCKS_PER_SEC << " sec" << endl;
 	
-	start = clock();
-	cout << endl << "hash" << endl;
-	int res = count_same_hash(arr1, arr2);
-	if (res == size1) cout << "OK" << endl;
-	else cout << "FAIL" << endl;
-	cout << "result: " << res << " expected: " << size1 << endl;
-	cout << "duration " << (clock() - start) / (double)CLOCKS_PER_SEC << " sec" << endl;
+	log_generated_test("hash", arr1, arr2, count_same_hash, size1);
+	log_generated_test("quick sort", arr1, arr2, count_same_quick_sort, size1);
+	log_generated_test("std sort", arr1, arr2, count_same_std_sort, size1);
+	log_generated_test("set", arr1, arr2, count_same_set, size1);
+	log_generated_test("radix", arr1, arr2, count_same_radix, size1);
 
-	start = clock();
-	cout << endl << "quick sort" << endl;
-	res = count_same_quick_sort(arr1, arr2);
-	if (res == size1) cout << "OK" << endl;
-	else cout << "FAIL" << endl;
-	cout << "result: " << res << " expected: " << size1 << endl;
-	cout << "duration " << (clock() - start) / (double)CLOCKS_PER_SEC << " sec" << endl;
 
-	start = clock();
-	cout << endl << "set" << endl;
-	res = count_same_set(arr1, arr2);
-	if (res == size1) cout << "OK" << endl;
-	else cout << "FAIL" << endl;
-	cout << "result: " << res << " expected: " << size1 << endl;
-	cout << "duration " << (clock() - start) / (double)CLOCKS_PER_SEC << " sec" << endl;
+	// size_t size1 = 100000;
+	// size_t size2 = 900000;
+	//generating data duration 15.87 sec
+	//hash
+	//	current max_load_factor : 1
+	//	current size : 100000
+	//	current bucket_count : 131072
+	//	current load_factor : 0.762939
+	//	OK
+	//	result : 100000 expected : 100000
+	//	duration 4.724 sec
 
-	start = clock();
-	cout << endl << "radix" << endl;
-	res = count_same_radix(arr1, arr2);
-	if (res == size1) cout << "OK" << endl;
-	else cout << "FAIL" << endl;
-	cout << "result: " << res << " expected: " << size1 << endl;
-	cout << "duration " << (clock() - start) / (double)CLOCKS_PER_SEC << " sec" << endl;
+	//	quick sort
+	//	OK
+	//	result : 100000 expected : 100000
+	//	duration 2.21 sec
+
+	//	std sort
+	//	OK
+	//	result : 100000 expected : 100000
+	//	duration 3.459 sec
+
+	//	set
+	//	OK
+	//	result : 100000 expected : 100000
+	//	duration 12.171 sec
+
+	//	radix
+	//	OK
+	//	result : 100000 expected : 100000
+	//	duration 31.048 sec
+
+	//////////////////////////////////////
+	// size_t size1 = 9;
+	// size_t size2 = 900000;
+	// generating data duration 16.81 sec
+	// hash
+	// current max_load_factor : 1
+	// current size : 9
+	// current bucket_count : 64
+	// current load_factor : 0.140625
+	// OK
+	// result : 9 expected : 9
+	// duration 2.553 sec
+
+	// quick sort
+	// OK
+	// result : 9 expected : 9
+	// duration 2.112 sec
+
+	// std sort
+	// OK
+	// result : 9 expected : 9
+	// duration 3.192 sec
+
+	// set
+	// OK
+	// result : 9 expected : 9
+	// duration 10.619 sec
+
+	// radix
+	// OK
+	// result : 9 expected : 9
+	// duration 27.948 sec
 }
 
 int main() {
